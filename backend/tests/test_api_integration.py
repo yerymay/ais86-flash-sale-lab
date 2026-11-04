@@ -151,6 +151,9 @@ def test_order_validation_and_stock(client: TestClient) -> None:
         [],
         [{"product_id": "nova-headphones", "quantity": 0}],
         [{"product_id": "nova-headphones", "quantity": 6}],
+        [{"product_id": "nova-headphones", "quantity": "2"}],
+        [{"product_id": "nova-headphones", "quantity": 2.0}],
+        [{"product_id": "nova-headphones", "quantity": True}],
         [{"product_id": "a" * 65, "quantity": 1}],
         [
             {"product_id": "nova-headphones", "quantity": 1},
@@ -160,7 +163,11 @@ def test_order_validation_and_stock(client: TestClient) -> None:
     ):
         response = client.post("/api/v1/orders", json={"items": items}, headers=headers)
         assert response.status_code == 422
-        assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+        body = response.json()
+        assert set(body) == {"error"}
+        assert body["error"]["code"] == "VALIDATION_ERROR"
+        assert body["error"]["message"] == "Request validation failed"
+        assert isinstance(body["error"]["details"], list)
 
     missing_product = client.post(
         "/api/v1/orders",

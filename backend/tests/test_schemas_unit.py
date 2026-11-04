@@ -20,8 +20,8 @@ def test_order_item_rejects_zero_and_out_of_range() -> None:
             OrderItemIn(product_id="nova-headphones", quantity=quantity)
 
 
-def test_order_item_rejects_boolean_and_float() -> None:
-    for quantity in (True, 2.0):
+def test_order_item_rejects_non_integer_types() -> None:
+    for quantity in (True, 2.0, "2"):
         with pytest.raises(ValidationError):
             OrderItemIn(product_id="nova-headphones", quantity=quantity)
 
