@@ -165,6 +165,7 @@ async def _create_or_replay(
                 {"product_id": item.product_id, "quantity": item.quantity}
                 for item in payload.items
             ],
+            total_cents,
             created_at,
         )
         session.add(

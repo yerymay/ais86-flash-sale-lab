@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 EVENT_SOURCE = "/services/orders"
 EVENT_TYPE = "pe.unamba.flash.order.created.v1"
 PRODUCT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+UUID_PATTERN = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+DATETIME_PATTERN = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?"
+    r"(?:Z|[+-]\d{2}:\d{2})$"
+)
 
 
 def iso8601(value: datetime) -> str:
@@ -34,6 +42,7 @@ def iso8601(value: datetime) -> str:
 def build_order_created_event(
     order_id: uuid.UUID,
     items: list[dict[str, Any]],
+    total_cents: int,
     created_at: datetime,
 ) -> dict[str, Any]:
     return {
@@ -49,12 +58,13 @@ def build_order_created_event(
                 {"product_id": item["product_id"], "quantity": item["quantity"]}
                 for item in items
             ],
+            "total_cents": total_cents,
         },
     }
 
 
 def _parse_uuid(value: Any) -> uuid.UUID | None:
-    if not isinstance(value, str):
+    if not isinstance(value, str) or not UUID_PATTERN.fullmatch(value):
         return None
     try:
         return uuid.UUID(value)
@@ -63,12 +73,13 @@ def _parse_uuid(value: Any) -> uuid.UUID | None:
 
 
 def _parse_time(value: Any) -> datetime | None:
-    if not isinstance(value, str):
+    if not isinstance(value, str) or not DATETIME_PATTERN.fullmatch(value):
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    return parsed if parsed.tzinfo is not None else None
 
 
 def validate_cloud_event(payload: Any) -> list[str]:
