@@ -1,4 +1,5 @@
 import os
+import time
 import uuid
 
 import pytest
@@ -141,6 +142,43 @@ def test_order_lifecycle_and_idempotency(client: TestClient) -> None:
 
     assert client.delete(f"/_lab/runs/{run_id}", headers=lab_headers()).status_code == 204
     assert client.get(f"/_lab/runs/{run_id}", headers=lab_headers()).status_code == 404
+
+
+def test_order_confirmation_does_not_wait_for_notification(client: TestClient) -> None:
+    notification_delay_ms = 2000
+    run_id = create_run(client, stock=5, delay=notification_delay_ms)
+    try:
+        headers = {**lab_headers(run_id), "Idempotency-Key": "order-key-delay"}
+        body = {"items": [{"product_id": "nova-headphones", "quantity": 1}]}
+
+        started_at = time.monotonic()
+        response = client.post("/api/v1/orders", json=body, headers=headers)
+        elapsed = time.monotonic() - started_at
+
+        assert response.status_code == 201
+        created = response.json()
+        assert created["status"] == "confirmed"
+        assert created["notification_status"] == "pending"
+        assert elapsed < notification_delay_ms / 1000 / 2
+
+        order_url = f"/api/v1/orders/{created['id']}"
+        order_headers = lab_headers(run_id)
+        assert (
+            client.get(order_url, headers=order_headers).json()["notification_status"]
+            == "pending"
+        )
+
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            order = client.get(order_url, headers=order_headers)
+            assert order.status_code == 200
+            if order.json()["notification_status"] == "sent":
+                break
+            time.sleep(0.1)
+        else:
+            pytest.fail("notification was not processed before the deadline")
+    finally:
+        assert client.delete(f"/_lab/runs/{run_id}", headers=lab_headers()).status_code == 204
 
 
 def test_order_validation_and_stock(client: TestClient) -> None:

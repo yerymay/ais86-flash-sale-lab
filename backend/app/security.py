@@ -89,7 +89,6 @@ def sanitize_validation_errors(errors: list[dict[str, Any]]) -> list[dict[str, A
 @dataclass(frozen=True)
 class DatasetContext:
     dataset_id: str
-    notification_delay_ms: int
     run_id: uuid.UUID | None
 
 
@@ -122,7 +121,7 @@ async def dataset_context(
     x_lab_key: str | None = Header(default=None, alias="X-Lab-Key"),
 ) -> DatasetContext:
     if x_lab_run is None:
-        return DatasetContext(dataset_id=PUBLIC_DATASET, notification_delay_ms=0, run_id=None)
+        return DatasetContext(dataset_id=PUBLIC_DATASET, run_id=None)
     settings = get_settings_from_request(request)
     if x_lab_key is None or not constant_time_equals(x_lab_key, settings.lab_key_value()):
         raise ApiError(401, "UNAUTHORIZED", "Lab authentication required")
@@ -137,7 +136,6 @@ async def dataset_context(
             raise ApiError(404, "NOT_FOUND", "Run not found")
         return DatasetContext(
             dataset_id=str(run.run_id),
-            notification_delay_ms=run.notification_delay_ms,
             run_id=run.run_id,
         )
 
